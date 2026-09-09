@@ -1,0 +1,33 @@
+# Build output
+target/
+build/
+*.class
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env / secrets
+.env
+*.pem
+*.p12
+
+# Assignment source material (confidential, not for distribution)
+Notification management system.pdf
+
+# Unused placeholder
+services/
