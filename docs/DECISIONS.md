@@ -45,3 +45,22 @@ Kept so the commit/design history is easy to review.
   SQL. Not required to run the assignment.
 - New shared Gradle module `notification-domain` holds the JPA entities and
   repositories used by both services, avoiding duplicated/drifting models.
+
+## 2026-09-10 — Greenfield submit/status API
+
+- POST /notifications + GET /notifications/{id} added in notification-api.
+- Idempotency key is required on submission (client-supplied) -- the sole
+  dedup boundary (4.4). A repeat with the same key returns the existing
+  notification (duplicate: true) rather than creating a second one, and logs
+  a DUPLICATE_SUPPRESSED audit event. Documented assumption: no separate
+  dedup TTL/retention window implemented yet -- keys are unique for the life
+  of the record.
+- Channel routing implemented behind a ChannelRouter interface so the policy
+  is swappable without touching the submission flow. Default policy
+  (documented assumption, no real recipient-preference store in this
+  prototype): CRITICAL severity always adds EMAIL + SMS to whatever was
+  requested; otherwise requested channels are used as-is.
+- Notification.status only reaches ROUTED in this increment -- the
+  IN_PROGRESS / COMPLETED / PARTIALLY_DELIVERED / FAILED rollup from
+  DeliveryTask outcomes is not yet wired from delivery-worker (next
+  increment, alongside real provider calls and retry/backoff).

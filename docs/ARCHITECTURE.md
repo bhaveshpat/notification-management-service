@@ -76,11 +76,51 @@ Two Spring profiles:
 - [x] Notification + delivery data model (entities, state machine)
 - [x] Module/service boundary and how they share data (H2 TCP server / DB-backed queue)
 - [x] Persistence choice (H2 in-memory by default, Postgres profile for production path)
-- [ ] API contract (submit, status) -- REST endpoints, request/response DTOs, validation
-- [ ] Deduplication logic -- check idempotency key on submit, short-circuit + audit DUPLICATE_SUPPRESSED
-- [ ] Channel routing policy (requested channel / severity / recipient preference / routing policy -> selected channel)
+- [x] API contract (submit, status) -- POST /notifications, GET /notifications/{id}
+- [x] Deduplication logic -- idempotency key checked on submit, short-circuits + audits DUPLICATE_SUPPRESSED
+- [x] Channel routing policy -- ChannelRouter interface + DefaultChannelRouter (severity override; see below)
 - [ ] Retry/backoff strategy in the worker (currently a wiring skeleton only -- QUEUED -> SENDING, no provider call, no failure handling yet)
 - [ ] Channel provider abstraction (mock/simulated providers per channel)
+- [ ] Aggregate Notification.status rollup from DeliveryTask outcomes (not yet wired -- worker doesn't update it)
+- [ ] "Reprocessing a queued delivery must not create uncontrolled duplicate side effects" (4.4, worker-side half of dedup)
+
+## API
+
+### POST /notifications
+Submits a notification. Requires `idempotencyKey` -- repeating the same key
+returns the original notification (`duplicate: true` in the response) instead
+of creating a second one.
+
+```bash
+curl -s -X POST http://localhost:8081/notifications \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "idempotencyKey": "order-42-shipped",
+        "sourceSystem": "order-service",
+        "eventId": "evt-123",
+        "notificationType": "ORDER_SHIPPED",
+        "severity": "MEDIUM",
+        "priority": "NORMAL",
+        "recipients": ["user-1"],
+        "requestedChannels": ["EMAIL"]
+      }'
+```
+
+Returns `201 Created` with `{ notificationId, status, duplicate, createdAt }`.
+
+### GET /notifications/{id}
+Returns the aggregate status plus per-recipient-per-channel delivery status.
+
+```bash
+curl -s http://localhost:8081/notifications/<id>
+```
+
+## Channel routing policy (current, documented assumption)
+
+No real recipient-preference store exists in this prototype. `DefaultChannelRouter`:
+CRITICAL severity always adds EMAIL + SMS regardless of what was requested;
+otherwise the requested channels are used as-is (deduplicated); if none were
+requested, defaults to EMAIL. Swappable via the `ChannelRouter` interface.
 
 ## Known limitations (to carry into the deliverable writeup)
 
