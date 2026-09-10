@@ -45,7 +45,7 @@ public class DeliveryTaskPoller {
     private final NotificationStatusRollupService rollupService;
 
     @Value("${notification.worker.batch-size:20}")
-    private int batchSize;
+    private int batchSize = 20;
 
     public DeliveryTaskPoller(DeliveryTaskRepository deliveryTaskRepository,
                                AuditEventRepository auditEventRepository,
