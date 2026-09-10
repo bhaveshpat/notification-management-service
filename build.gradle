@@ -3,6 +3,10 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.6' apply false
 }
 
+ext {
+    springBootVersion = '3.3.5'
+}
+
 allprojects {
     group = 'com.meetbhavesh.notification'
     version = '0.1.0-SNAPSHOT'
@@ -19,6 +23,17 @@ subprojects {
     java {
         toolchain {
             languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    // Import the Spring Boot BOM explicitly here (rather than relying on the
+    // spring-boot Gradle plugin's implicit auto-import) because not every
+    // subproject applies that plugin -- notification-domain is a plain
+    // java-library, not a bootable app, but it still needs managed versions
+    // for spring-boot-starter-data-jpa and lombok.
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
         }
     }
 
