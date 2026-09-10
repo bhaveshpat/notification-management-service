@@ -79,10 +79,46 @@ Two Spring profiles:
 - [x] API contract (submit, status) -- POST /notifications, GET /notifications/{id}
 - [x] Deduplication logic -- idempotency key checked on submit, short-circuits + audits DUPLICATE_SUPPRESSED
 - [x] Channel routing policy -- ChannelRouter interface + DefaultChannelRouter (severity override; see below)
-- [ ] Retry/backoff strategy in the worker (currently a wiring skeleton only -- QUEUED -> SENDING, no provider call, no failure handling yet)
-- [ ] Channel provider abstraction (mock/simulated providers per channel)
-- [ ] Aggregate Notification.status rollup from DeliveryTask outcomes (not yet wired -- worker doesn't update it)
-- [ ] "Reprocessing a queued delivery must not create uncontrolled duplicate side effects" (4.4, worker-side half of dedup)
+- [x] Retry/backoff strategy in the worker (bounded exponential backoff, failure-reason classification)
+- [x] Channel provider abstraction (ChannelProvider interface + SimulatedChannelProvider)
+- [x] Aggregate Notification.status rollup from DeliveryTask outcomes (NotificationStatusRollupService, called after every transition)
+- [ ] "Reprocessing a queued delivery must not create uncontrolled duplicate side effects" (4.4, worker-side half of dedup) -- see Known limitations
+
+## Delivery processing (worker)
+
+`DeliveryTaskPoller` polls for tasks in QUEUED or FAILED_RETRYABLE status that
+are due (`nextAttemptAt` unset or in the past), and for each:
+
+1. Marks it SENDING, increments `attemptCount`, stamps `lastAttemptAt`, logs
+   `DELIVERY_ATTEMPTED`.
+2. Calls `ChannelProvider.send(task)` (currently `SimulatedChannelProvider` --
+   documented assumption, no real email/SMS/push/webhook integration exists).
+3. On success: SUCCEEDED, records `providerMessageId`, logs `DELIVERY_SUCCEEDED`.
+4. On failure: classifies via `RetryPolicy` --
+   - Retryable (`TRANSIENT_PROVIDER_FAILURE`, `RATE_LIMITED`, `TIMEOUT`) and
+     attempts remain -> `FAILED_RETRYABLE`, `nextAttemptAt` set via bounded
+     exponential backoff (10s base, doubling, capped at 5 min), logs
+     `DELIVERY_FAILED` + `RETRY_SCHEDULED`.
+   - Otherwise (`PERMANENT_PROVIDER_REJECTION`, `INVALID_RECIPIENT`,
+     `AUTH_ERROR`, or attempts exhausted) -> `FAILED_TERMINAL`, logs
+     `DELIVERY_FAILED` (terminal=true).
+5. Rolls the outcome up into `Notification.status` (`NotificationStatusRollupService`):
+   any task still in flight -> `IN_PROGRESS`; all terminal with a mix of
+   success/failure -> `PARTIALLY_DELIVERED`; all succeeded -> `COMPLETED`;
+   none succeeded -> `FAILED`.
+
+### Testing the retry/failure paths on demand
+
+`SimulatedChannelProvider` recognizes recipient id prefixes so specific
+outcomes can be exercised without relying on randomness:
+
+| Recipient id prefix | Outcome                       | Retryable? |
+|----------------------|-------------------------------|------------|
+| `invalid-...`         | INVALID_RECIPIENT             | No |
+| `blocked-...`         | AUTH_ERROR                    | No |
+| `ratelimit-...`       | RATE_LIMITED                  | Yes |
+| `flaky-...`           | TRANSIENT_PROVIDER_FAILURE    | Yes (every attempt) |
+| anything else         | ~85% success / ~15% transient failure | Yes, when it fails |
 
 ## API
 
@@ -126,8 +162,16 @@ requested, defaults to EMAIL. Swappable via the `ChannelRouter` interface.
 
 - Single delivery-worker instance assumed; the claim query is a plain SELECT,
   not a locking claim -- would double-process under multiple worker instances.
+  This is also the reason 4.4's "reprocessing a queued delivery must not
+  create uncontrolled duplicate side effects" isn't separately implemented:
+  with one worker instance there is no concurrent reprocessing to guard
+  against yet. A real claim (`SELECT ... FOR UPDATE SKIP LOCKED`) would be
+  needed before scaling to multiple worker instances.
 - H2 TCP sharing is a dev/assignment convenience with a startup-order
   dependency (api before worker); not a production pattern.
+- SimulatedChannelProvider is not a real integration with any channel.
+- Retry backoff/cap values (10s base, 5 min cap, up to 5 attempts) are
+  reasonable defaults for a prototype, not tuned against real provider SLAs.
 
 ## Decisions log
 

@@ -15,21 +15,22 @@ public interface DeliveryTaskRepository extends JpaRepository<DeliveryTask, Stri
     List<DeliveryTask> findByNotificationId(String notificationId);
 
     /**
-     * Candidate rows for the worker to claim: QUEUED and due (nextAttemptAt
-     * unset, or in the past).
+     * Candidate rows for the worker to claim: in one of `statuses` (normally
+     * QUEUED and FAILED_RETRYABLE -- see DeliveryTaskStatus) and due
+     * (nextAttemptAt unset, or in the past).
      *
      * NOTE (documented limitation): this is a plain SELECT, not a locking
-     * SELECT ... FOR UPDATE SKIP LOCKED claim. It is correct for a single
-     * delivery-worker instance (the prototype's assumption) but is NOT safe
-     * for multiple concurrent worker instances, which could double-claim the
+     * SELECT ... FOR UPDATE SKIP LOCKED claim. Correct for a single
+     * delivery-worker instance (the prototype's assumption) but NOT safe for
+     * multiple concurrent worker instances, which could double-claim the
      * same row. See docs/ARCHITECTURE.md / DECISIONS.md.
      */
     @Query("select t from DeliveryTask t "
-            + "where t.status = :status "
+            + "where t.status in :statuses "
             + "and (t.nextAttemptAt is null or t.nextAttemptAt <= :now) "
             + "order by t.createdAt asc")
     List<DeliveryTask> findDueForProcessing(
-            @Param("status") DeliveryTaskStatus status,
+            @Param("statuses") List<DeliveryTaskStatus> statuses,
             @Param("now") Instant now,
             Pageable pageable
     );

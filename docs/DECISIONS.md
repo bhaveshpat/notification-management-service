@@ -64,3 +64,27 @@ Kept so the commit/design history is easy to review.
   IN_PROGRESS / COMPLETED / PARTIALLY_DELIVERED / FAILED rollup from
   DeliveryTask outcomes is not yet wired from delivery-worker (next
   increment, alongside real provider calls and retry/backoff).
+
+## 2026-09-10 — Delivery processing: provider simulation, retry policy, status rollup
+
+- ChannelProvider interface + SimulatedChannelProvider: no real channel
+  integration exists in this prototype (documented assumption). Recipient id
+  prefixes (invalid-/blocked-/ratelimit-/flaky-) let specific outcomes be
+  exercised deterministically for testing/demo; otherwise ~85%/15% success/
+  transient-failure split.
+- RetryPolicy: TRANSIENT_PROVIDER_FAILURE, RATE_LIMITED, and TIMEOUT are
+  retryable; PERMANENT_PROVIDER_REJECTION, INVALID_RECIPIENT, and AUTH_ERROR
+  are not, regardless of remaining attempts. Bounded exponential backoff
+  (10s base, doubling, capped at 5 minutes), bounded by DeliveryTask.maxAttempts
+  (default 5).
+- FAILED_RETRYABLE is itself a pollable status (with nextAttemptAt) rather
+  than bouncing back through QUEUED -- one fewer state transition, and the
+  status is more informative to a client checking GET /notifications/{id}
+  mid-retry than seeing QUEUED again.
+- NotificationStatusRollupService recomputes Notification.status from all of
+  its DeliveryTask rows after every transition (any task in flight ->
+  IN_PROGRESS; all terminal, mixed outcome -> PARTIALLY_DELIVERED; all
+  succeeded -> COMPLETED; none succeeded -> FAILED). Lives in delivery-worker
+  since that's where task transitions happen; reads/writes Notification
+  directly via the shared notification-domain repository rather than calling
+  back into notification-api over HTTP.
