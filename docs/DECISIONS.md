@@ -88,3 +88,17 @@ Kept so the commit/design history is easy to review.
   since that's where task transitions happen; reads/writes Notification
   directly via the shared notification-domain repository rather than calling
   back into notification-api over HTTP.
+
+## 2026-09-10 — Test suite added
+
+- notification-domain: @DataJpaTest repository tests (real H2, added as a
+  test-only dependency there) via a minimal test-only @SpringBootConfiguration
+  (TestJpaConfig), since the module itself isn't a Boot application.
+- notification-api: Mockito-based unit tests for NotificationService and
+  DefaultChannelRouter; @WebMvcTest for NotificationController (HTTP layer
+  only, service mocked).
+- delivery-worker: Mockito-based unit tests for DeliveryTaskPoller,
+  RetryPolicy, SimulatedChannelProvider, NotificationStatusRollupService.
+- Deliberately no test exercises the H2-TCP cross-process sharing itself
+  (dev-profile-only wiring) -- that's covered by manual verification per the
+  README, not worth the complexity of spinning up two JVMs in a test.

@@ -176,3 +176,35 @@ requested, defaults to EMAIL. Swappable via the `ChannelRouter` interface.
 ## Decisions log
 
 See `docs/DECISIONS.md`.
+
+
+## Testing approach
+
+- **notification-domain** (`@DataJpaTest`, real H2): proves the JPA mappings
+  and the hand-written `findDueForProcessing` JPQL actually behave -- e.g.
+  that a `FAILED_RETRYABLE` row with a future `nextAttemptAt` is correctly
+  excluded, and that the idempotency-key unique constraint is enforced at
+  the database level as a second line of defense behind the application-level
+  check.
+- **notification-api** (JUnit 5 + Mockito): `NotificationServiceTest` covers
+  the dedup short-circuit, the recipients x routed-channels delivery-task
+  fan-out, and the status lookup / not-found path, with the repositories and
+  router mocked. `DefaultChannelRouterTest` covers the routing policy in
+  isolation. `NotificationControllerTest` (`@WebMvcTest`) covers the HTTP
+  layer: 201 on success, 400 on a missing required field, 404 for an unknown
+  id -- with the service layer mocked out.
+- **delivery-worker** (JUnit 5 + Mockito): `RetryPolicyTest` and
+  `SimulatedChannelProviderTest` cover the retry classification/backoff
+  formula and the deterministic recipient-id conventions in isolation.
+  `DeliveryTaskPollerTest` covers the three outcomes of processing a claimed
+  task (success, retryable failure with attempts remaining, non-retryable/
+  exhausted failure) with all collaborators mocked.
+  `NotificationStatusRollupServiceTest` covers all four rollup outcomes
+  (IN_PROGRESS / COMPLETED / PARTIALLY_DELIVERED / FAILED) plus the
+  no-op-when-unchanged case.
+- Manual end-to-end verification (documented in the README) covers the
+  actual cross-process path (notification-api <-> shared H2 <-> delivery-worker)
+  that the unit/slice tests intentionally don't exercise, since that wiring
+  is specific to the dev profile's H2-TCP-sharing setup.
+
+Run all tests: `./gradlew test`.
