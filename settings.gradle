@@ -1,0 +1,2 @@
+rootProject.name = 'notification-management-service'
+include 'notification-api', 'delivery-worker'

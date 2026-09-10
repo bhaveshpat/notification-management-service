@@ -4,14 +4,14 @@ A Spring Boot microservices prototype that receives alert requests from upstream
 systems and delivers notifications to users through configurable channels
 (email, SMS, push, etc.).
 
-## Modules (Maven monorepo)
+## Modules (Gradle multi-project build)
 
 | Module              | Port | Responsibility                                                        |
 |---------------------|------|-------------------------------------------------------------------------|
 | `notification-api`  | 8081 | Accepts notification submissions, exposes status/query API             |
 | `delivery-worker`   | 8082 | Async processing: channel routing, provider calls, retries, dedup      |
 
-More services may be added as modules under the root `pom.xml`.
+More services may be added as modules under `settings.gradle`.
 
 ## Status
 
@@ -21,19 +21,22 @@ decisions (useful for review/audit trail).
 
 ## Prerequisites
 
-- Java 17+
-- Maven 3.9+
+- Java 17+ (the Gradle wrapper will provision it via toolchains if not on your PATH,
+  network permitting)
 - Git
+
+Gradle itself does not need to be installed — this repo uses the Gradle Wrapper
+(`./gradlew`), which downloads the pinned Gradle version automatically on first run.
 
 ## Build & run
 
 ```bash
 # from the repo root
-mvn clean install
+./gradlew build
 
 # run a single module, e.g.
-cd notification-api
-mvn spring-boot:run
+./gradlew :notification-api:bootRun
+./gradlew :delivery-worker:bootRun
 ```
 
 ## Repository workflow

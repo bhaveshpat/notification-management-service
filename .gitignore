@@ -31,3 +31,11 @@ Notification management system.pdf
 
 # Unused placeholder
 services/
+
+# Gradle
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# Old Maven files kept only for manual deletion, not tracked
+_to_delete_maven/
