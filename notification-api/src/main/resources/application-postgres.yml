@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notificationdb
+    driver-class-name: org.postgresql.Driver
+    username: notification
+    password: notification
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+notification:
+  h2-server:
+    enabled: false

@@ -1,0 +1,21 @@
+# Optional -- only needed to run under the "postgres" Spring profile.
+# Default (dev) profile uses in-memory H2 and needs none of this.
+#
+# Usage:
+#   docker compose up -d
+#   ./gradlew :notification-api:bootRun --args='--spring.profiles.active=postgres'
+#   ./gradlew :delivery-worker:bootRun --args='--spring.profiles.active=postgres'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: notification
+      POSTGRES_PASSWORD: notification
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

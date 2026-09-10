@@ -4,9 +4,25 @@ server:
 spring:
   application:
     name: delivery-worker
+  datasource:
+    url: jdbc:h2:tcp://localhost:9092/mem:notificationdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      # notification-api owns schema creation (ddl-auto: update); this
+      # service only ever validates against the existing shared schema.
+      ddl-auto: validate
+    open-in-view: false
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+notification:
+  worker:
+    poll-interval-ms: 2000
+    batch-size: 20
